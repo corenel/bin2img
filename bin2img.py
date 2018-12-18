@@ -1,5 +1,6 @@
 import os
 import glob
+import multiprocessing as mp
 
 import click
 import cv2
@@ -79,7 +80,7 @@ def yuv2rgb(y, u, v, use_cv2=True):
     return img_rgb
 
 
-def bin2img(bin_file, out_dir, height=640, width=480):
+def bin2img(bin_file, out_dir=None, height=640, width=480):
     """
     Convert binary image file into RGB png image
 
@@ -92,6 +93,9 @@ def bin2img(bin_file, out_dir, height=640, width=480):
     :param width: image width
     :type width: int
     """
+    print('Processing {}'.format(bin_file))
+    if out_dir is None:
+        out_dir = os.path.join(os.path.dirname(bin_file), 'png')
     # check output directory
     os.makedirs(out_dir, exist_ok=True)
     # length for image binary
@@ -101,7 +105,6 @@ def bin2img(bin_file, out_dir, height=640, width=480):
     with open(bin_file, 'rb') as f:
         while True:
             # read binary
-            print('Processing frame {}'.format(image_idx))
             yuv_raw = read_binary(f, data_len, np.uint8)
             if len(yuv_raw) < data_len:
                 break
@@ -133,13 +136,11 @@ def decode_bin_file(bin_file, out_dir, height, width):
 @click.option('--out-dir', type=click.Path(exists=True))
 @click.option('--height', type=int, default=640)
 @click.option('--width', type=int, default=480)
-def decode_bin_file(data_root, out_dir, height, width):
+def decode_bin_files(data_root, out_dir, height, width):
     bin_files = glob.iglob(os.path.join(data_root, '**', '*.bin'), recursive=True)
-    for bin_file in bin_files:
-        bin_path = os.path.join(data_root, bin_file)
-        if out_dir is None:
-            out_dir = os.path.join(os.path.dirname(bin_path), 'png')
-        bin2img(bin_path, out_dir, height, width)
+    bin_files = [os.path.join(data_root, bin_file) for bin_file in bin_files]
+    with mp.Pool(mp.cpu_count() - 1) as p:
+        p.map(bin2img, bin_files)
 
 
 if __name__ == '__main__':
